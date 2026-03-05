@@ -138,6 +138,7 @@ def process_videos(root_folder, output_csv, convert_to_h265):
 if __name__ == "__main__":
     
     # python findNonH265.py "F:\TV Series New\Robin Hood (2025)"
+    # python findNonH265.py "F:\TV Series New\" --convert
     
     parser = argparse.ArgumentParser(description="Batch convert non-H265 MKVs to H265.")
     parser.add_argument("folder", help="The starting folder to scan")
@@ -149,4 +150,5 @@ if __name__ == "__main__":
     if os.path.exists(args.folder):
         process_videos(args.folder, args.csv, args.convert)
     else:
+
         print(f"Error: Path '{args.folder}' does not exist.")
