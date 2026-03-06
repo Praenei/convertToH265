@@ -58,12 +58,13 @@ def process_videos(root_folder, output_csv, convert_to_h265):
                     
                     
                     if convert_to_h265:
+                        dir_name = os.path.dirname(full_path)
                         base_name = os.path.splitext(full_path)[0]
-                        new_base_name = base_name.replace("x264", "x265").replace("h264", "x265")
+                        new_base_name = base_name.split("/")[-1].replace("x264", "x265").replace("h264", "x265")
                         if "x265" not in new_base_name:
-                            output_path = f"{new_base_name}_x265.mkv"
+                            output_path = f"{dir_name}/{new_base_name}_x265.mkv"
                         else:
-                            output_path = f"{new_base_name}.mkv"
+                            output_path = f"{dir_name}/{new_base_name}.mkv"
 
                         # FFmpeg Command: Includes Video re-encode, Audio copy, and Subtitle copy
                         # Using map 0 ensures ALL streams (subs included) are pulled in
@@ -143,7 +144,7 @@ def process_videos(root_folder, output_csv, convert_to_h265):
 if __name__ == "__main__":
     
     # python findNonH265.py "F:\TV Series New\Robin Hood (2025)"
-    # python findNonH265.py "F:\TV Series New\" --convert
+    # python findNonH265.py "F:\TV Series New" --convert
     
     parser = argparse.ArgumentParser(description="Batch convert non-H265 MKVs to H265.")
     parser.add_argument("folder", help="The starting folder to scan")
