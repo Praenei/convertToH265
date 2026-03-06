@@ -38,90 +38,95 @@ def process_videos(root_folder, output_csv, convert_to_h265):
     
     total_files_to_check = len(all_files)
     
-    with open(output_csv, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.writer(f)
-        writer.writerow(['Filename', 'Codec', 'Size (KB)', 'Full Path'])
+    try:
+        with open(output_csv, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            writer.writerow(['Filename', 'Codec', 'Size (KB)', 'Full Path'])
 
-        for index, full_path in enumerate(all_files):
-            filename = os.path.basename(full_path)
-            codec = get_video_codec(full_path)
-            
-            # Process if NOT already H.265 (hevc)
-            if codec != 'hevc':
+            for index, full_path in enumerate(all_files):
+                filename = os.path.basename(full_path)
+                codec = get_video_codec(full_path)
                 
-                orig_size = os.path.getsize(full_path)
-                size_kb = round(orig_size / 1024, 2)
-                
-                writer.writerow([filename, codec, size_kb, full_path])
-                print(f"\n[!] Processing: {filename} ({codec})")
-                
-                
-                if convert_to_h265:
-                    base_name = os.path.splitext(full_path)[0]
-                    new_base_name = base_name.replace("x264", "x265").replace("h264", "x265")
-                    if "x265" not in new_base_name:
-                        output_path = f"{new_base_name}_x265.mkv"
-                    else:
-                        output_path = f"{new_base_name}.mkv"
+                # Process if NOT already H.265 (hevc)
+                if codec != 'hevc':
+                    
+                    orig_size = os.path.getsize(full_path)
+                    size_kb = round(orig_size / 1024, 2)
+                    
+                    writer.writerow([filename, codec, size_kb, full_path])
+                    print(f"\n[!] Processing: {filename} ({codec})")
+                    
+                    
+                    if convert_to_h265:
+                        base_name = os.path.splitext(full_path)[0]
+                        new_base_name = base_name.replace("x264", "x265").replace("h264", "x265")
+                        if "x265" not in new_base_name:
+                            output_path = f"{new_base_name}_x265.mkv"
+                        else:
+                            output_path = f"{new_base_name}.mkv"
 
-                    # FFmpeg Command: Includes Video re-encode, Audio copy, and Subtitle copy
-                    # Using map 0 ensures ALL streams (subs included) are pulled in
-                    conv_cmd = [
-                        'ffmpeg', 
-                        '-hide_banner',                     # Global flag first
-                        '-loglevel', 'error',               # Global flag first
-                        '-i', full_path,                    # Input
-                        '-map', '0', 
-                        '-c:v', 'hevc_nvenc', 
-                        '-preset', 'p4',
-                        '-rc', 'vbr',
-                        '-cq', '32',
-                        '-vf', "scale='min(1920,iw)':-2",   # Filters after input
-                        '-pix_fmt', 'yuv420p',
-                        '-level', '4.1',
-                        '-tier', 'main',
-                        '-c:a', 'copy',
-                        '-c:s', 'copy',
-                        '-y', 
-                        output_path                         # Output last
-                    ]
+                        # FFmpeg Command: Includes Video re-encode, Audio copy, and Subtitle copy
+                        # Using map 0 ensures ALL streams (subs included) are pulled in
+                        conv_cmd = [
+                            'ffmpeg', 
+                            '-hide_banner',                     # Global flag first
+                            '-loglevel', 'error',               # Global flag first
+                            '-err_detect', 'ignore_err',
+                            '-i', full_path,                    # Input
+                            '-map', '0', 
+                            '-c:v', 'hevc_nvenc', 
+                            '-preset', 'p4',
+                            '-rc', 'vbr',
+                            '-cq', '32',
+                            '-vf', "scale='min(1920,iw)':-2",   # Filters after input
+                            '-pix_fmt', 'yuv420p',
+                            '-level', '4.1',
+                            '-tier', 'main',
+                            '-c:a', 'copy',
+                            '-c:s', 'copy',
+                            '-y', 
+                            output_path                         # Output last
+                        ]
 
-                    try:
-                        subprocess.run(conv_cmd, check=True)
-                        
-                        # Give the OS a tiny moment to release the file handle
-                        time.sleep(1) 
+                        try:
+                            result = subprocess.run(conv_cmd, check=True)
+                            
+                            # Give the OS a tiny moment to release the file handle
+                            time.sleep(1) 
 
-                        max_retries = 3
-                        for i in range(max_retries):
-                            try:
-                                os.chmod(full_path, stat.S_IWRITE)
-                                os.remove(full_path)
-                                print(f"Successfully removed original: {filename}")
-                                break 
-                            except PermissionError:
-                                if i < max_retries - 1:
-                                    print(f"File locked, retrying deletion in 2s... (Attempt {i+1}/{max_retries})")
-                                    time.sleep(2)
-                                else:
-                                    print(f"CRITICAL: Could not delete {filename}. Manual cleanup required.")
-                        
-                        # Stats tracking
-                        new_size = os.path.getsize(output_path)
-                        total_original_size += orig_size
-                        total_new_size += new_size
-                        files_processed += 1
-                        
-                        # Time Estimation
-                        elapsed = time.time() - batch_start_time
-                        avg_time = elapsed / files_processed
-                        remaining = total_files_to_check - (index + 1)
-                        est_min, est_sec = divmod(avg_time * remaining, 60)
-                        
-                        print(f"Done. Est. remaining: {int(est_min)}m {int(est_sec)}s")
-                        
-                    except subprocess.CalledProcessError as e:
-                        print(f"Error converting {filename}: {e}")
+                            max_retries = 3
+                            for i in range(max_retries):
+                                try:
+                                    os.chmod(full_path, stat.S_IWRITE)
+                                    os.remove(full_path)
+                                    print(f"Successfully removed original: {filename}")
+                                    break 
+                                except PermissionError:
+                                    if i < max_retries - 1:
+                                        print(f"File locked, retrying deletion in 2s... (Attempt {i+1}/{max_retries})")
+                                        time.sleep(2)
+                                    else:
+                                        print(f"CRITICAL: Could not delete {filename}. Manual cleanup required.")
+                            
+                            # Stats tracking
+                            new_size = os.path.getsize(output_path)
+                            total_original_size += orig_size
+                            total_new_size += new_size
+                            files_processed += 1
+                            
+                            # Time Estimation
+                            elapsed = time.time() - batch_start_time
+                            avg_time = elapsed / files_processed
+                            remaining = total_files_to_check - (index + 1)
+                            est_min, est_sec = divmod(avg_time * remaining, 60)
+                            
+                            print(f"Done. Est. remaining: {int(est_min)}m {int(est_sec)}s")
+                            
+                        except subprocess.CalledProcessError as e:
+                            print(f"Error converting {filename}: {e}")
+    except KeyboardInterrupt:
+        print("\n\n" + "*"*30)
+        print("PROCESS INTERRUPTED BY USER (Ctrl+C)")
 
     # Final Summary
     duration_mins = (time.time() - batch_start_time) / 60
@@ -150,5 +155,4 @@ if __name__ == "__main__":
     if os.path.exists(args.folder):
         process_videos(args.folder, args.csv, args.convert)
     else:
-
         print(f"Error: Path '{args.folder}' does not exist.")
